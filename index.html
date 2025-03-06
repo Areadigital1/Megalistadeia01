@@ -1,0 +1,906 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Área Digital - Portal do Cliente</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#5D5CDE",
+                    }
+                }
+            },
+            darkMode: 'class',
+        }
+
+        // Setup dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDKs usando versão 8.x que é mais estável -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        /* Transition Animations */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .slide-up {
+            animation: slideUp 0.3s ease-in-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        /* Card hover effect */
+        .product-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+        .dark .product-card:hover {
+            box-shadow: 0 10px 25px -5px rgba(255, 255, 255, 0.05), 0 8px 10px -6px rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            <p class="mt-4 text-lg">Carregando...</p>
+        </div>
+    </div>
+
+    <!-- Login Section (shown when user is not logged in) -->
+    <div id="loginSection" class="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-800 hidden">
+        <div class="bg-white dark:bg-gray-900 p-8 rounded-lg shadow-lg max-w-md w-full slide-up">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-primary mb-2">Área Digital</h1>
+                <p class="text-gray-600 dark:text-gray-400">Faça login para acessar a plataforma</p>
+            </div>
+            
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label for="loginEmail" class="block text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="loginEmail" class="w-full p-3 border rounded-lg text-base bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-gray-800 dark:text-gray-200" required="">
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-sm font-medium mb-2">Senha</label>
+                    <input type="password" id="loginPassword" class="w-full p-3 border rounded-lg text-base bg-gray-50 dark:bg-gray-700 dark:border-gray-600 text-gray-800 dark:text-gray-200" required="">
+                </div>
+                <p id="loginError" class="text-red-500 text-sm text-center hidden"></p>
+                <button type="submit" class="w-full bg-primary hover:bg-opacity-90 text-white font-medium py-3 px-4 rounded-lg transition duration-300">Entrar</button>
+            </form>
+            
+            <div class="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+                <p>Não tem uma conta? Entre em contato com o administrador.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application (shown when user is logged in) -->
+    <div id="appSection" class="hidden">
+        <!-- Main Header -->
+        <header id="mainHeader" class="fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 shadow-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center">
+                        <a href="#" class="flex-shrink-0 text-xl font-bold text-primary">Área Digital</a>
+                    </div>
+                    
+                    <!-- Desktop Navigation -->
+                    <nav class="hidden md:flex items-center space-x-6">
+                        <a href="#home" class="text-primary font-medium">Home</a>
+                        <a href="#products" class="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary font-medium">Produtos</a>
+                        <a href="#gallery" class="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary font-medium">Galeria</a>
+                        <div class="ml-2 relative">
+                            <button id="userMenuBtn" class="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-primary">
+                                <span id="userDisplayName" class="mr-2"></span>
+                                <i class="fas fa-user-circle text-xl"></i>
+                            </button>
+                            <div id="userDropdown" class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 hidden">
+                                <a href="#" id="logoutBtn" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                    <i class="fas fa-sign-out-alt mr-2"></i> Sair
+                                </a>
+                            </div>
+                        </div>
+                    </nav>
+                    
+                    <!-- Mobile Menu Button -->
+                    <div class="md:hidden">
+                        <button id="mobileMenuBtn" class="text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mobile Navigation -->
+            <div id="mobileMenu" class="md:hidden bg-white dark:bg-gray-800 shadow-lg hidden">
+                <div class="px-4 py-4 space-y-4">
+                    <a href="#home" class="block py-2 text-primary font-medium">Home</a>
+                    <a href="#products" class="block py-2 text-gray-600 dark:text-gray-300 font-medium">Produtos</a>
+                    <a href="#gallery" class="block py-2 text-gray-600 dark:text-gray-300 font-medium">Galeria</a>
+                    <div class="py-2 border-t border-gray-200 dark:border-gray-700">
+                        <p id="mobileUserDisplayName" class="font-medium mb-2"></p>
+                        <a href="#" id="mobileLogoutBtn" class="block py-2 text-red-600">
+                            <i class="fas fa-sign-out-alt mr-2"></i> Sair
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area starts 16px below header -->
+        <main id="mainContent" class="pt-16">
+            <!-- Hero Section -->
+            <section id="home" class="bg-gray-50 dark:bg-gray-800 py-12 md:py-20">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center">
+                        <h1 class="text-4xl font-bold mb-6">Bem-vindo à Área Digital</h1>
+                        <p class="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8">
+                            Acesse nossos produtos e soluções exclusivas para clientes.
+                        </p>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Products Section -->
+            <section id="products" class="py-16 bg-white dark:bg-gray-900">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center mb-12">
+                        <h2 class="text-3xl font-bold mb-4">Nossos Produtos</h2>
+                        <p class="text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                            Conheça nossa linha completa de produtos e soluções.
+                        </p>
+                    </div>
+                    
+                    <div id="productFilters" class="flex flex-wrap gap-2 mb-8 justify-center">
+                        <button class="product-filter-btn bg-primary bg-opacity-10 text-primary px-4 py-2 rounded-full text-sm font-medium" data-filter="all">
+                            Todos
+                        </button>
+                    </div>
+                    
+                    <div id="productsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div class="text-center text-gray-500 dark:text-gray-400 col-span-full">Carregando produtos...</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Gallery Section -->
+            <section id="gallery" class="py-16 bg-gray-50 dark:bg-gray-800">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center mb-12">
+                        <h2 class="text-3xl font-bold mb-4">Nossa Galeria</h2>
+                        <p class="text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                            Confira alguns dos nossos trabalhos e projetos.
+                        </p>
+                    </div>
+                    
+                    <div id="galleryFilters" class="flex flex-wrap gap-2 mb-8 justify-center">
+                        <button class="gallery-filter-btn bg-primary bg-opacity-10 text-primary px-4 py-2 rounded-full text-sm font-medium" data-filter="all">
+                            Todas
+                        </button>
+                    </div>
+                    
+                    <div id="imageGallery" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="text-center text-gray-500 dark:text-gray-400 col-span-full">Carregando imagens...</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Footer -->
+        <footer class="bg-gray-800 dark:bg-gray-900 text-white py-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <p class="text-gray-400">© 2023 Área Digital. Todos os direitos reservados.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-lg shadow-lg transform transition-transform duration-300 translate-y-20 opacity-0 flex items-center z-50">
+        <i id="toastIcon" class="fas fa-check-circle mr-2"></i>
+        <span id="toastMessage">Operação realizada com sucesso!</span>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div id="imagePreviewModal" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50 hidden">
+        <button class="absolute top-6 right-6 text-white text-3xl closeModal">
+            <i class="fas fa-times"></i>
+        </button>
+        <img id="previewImage" src="" alt="Preview" class="max-w-full max-h-[90vh] object-contain">
+        <div class="absolute bottom-6 left-0 right-0 text-center">
+            <h3 id="previewTitle" class="text-white text-xl font-semibold mb-1"></h3>
+            <p id="previewCategory" class="text-gray-300 text-sm"></p>
+        </div>
+    </div>
+
+    <!-- Link Redirect Modal -->
+    <div id="redirectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full slide-up p-6">
+            <div class="text-center mb-4">
+                <i class="fas fa-external-link-alt text-primary text-3xl mb-4"></i>
+                <h3 class="text-xl font-bold mb-2">Acessar Link Externo</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">Você está prestes a acessar:</p>
+                <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg mb-6 break-all">
+                    <p id="redirectUrl" class="font-medium"></p>
+                </div>
+                <div class="flex justify-center space-x-4">
+                    <button id="cancelRedirectBtn" class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 py-2 px-4 rounded-lg">
+                        Cancelar
+                    </button>
+                    <a id="confirmRedirectBtn" href="#" target="_blank" rel="noopener noreferrer" class="bg-primary hover:bg-opacity-90 text-white py-2 px-6 rounded-lg inline-block">
+                        Acessar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBjGVU-cjGdRqYJfzzL9y1xTygktPGEuVE",
+            authDomain: "areadigital-97277.firebaseapp.com",
+            databaseURL: "https://areadigital-97277-default-rtdb.firebaseio.com",
+            projectId: "areadigital-97277",
+            storageBucket: "areadigital-97277.appspot.com",
+            messagingSenderId: "316187390393",
+            appId: "1:316187390393:web:f9a1b04a66f7ec0775c668",
+            measurementId: "G-276TZWN6C4"
+        };
+
+        // DOM Elements
+        const elements = {
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            loginSection: document.getElementById('loginSection'),
+            appSection: document.getElementById('appSection'),
+            
+            mainHeader: document.getElementById('mainHeader'),
+            mainContent: document.getElementById('mainContent'),
+            
+            loginForm: document.getElementById('loginForm'),
+            loginError: document.getElementById('loginError'),
+            userDisplayName: document.getElementById('userDisplayName'),
+            userDropdown: document.getElementById('userDropdown'),
+            logoutBtn: document.getElementById('logoutBtn'),
+            
+            mobileMenuBtn: document.getElementById('mobileMenuBtn'),
+            mobileMenu: document.getElementById('mobileMenu'),
+            mobileUserDisplayName: document.getElementById('mobileUserDisplayName'),
+            mobileLogoutBtn: document.getElementById('mobileLogoutBtn'),
+            
+            productsList: document.getElementById('productsList'),
+            productFilters: document.getElementById('productFilters'),
+            imageGallery: document.getElementById('imageGallery'),
+            galleryFilters: document.getElementById('galleryFilters'),
+            
+            imagePreviewModal: document.getElementById('imagePreviewModal'),
+            previewImage: document.getElementById('previewImage'),
+            previewTitle: document.getElementById('previewTitle'),
+            previewCategory: document.getElementById('previewCategory'),
+            
+            redirectModal: document.getElementById('redirectModal'),
+            redirectUrl: document.getElementById('redirectUrl'),
+            confirmRedirectBtn: document.getElementById('confirmRedirectBtn'),
+            cancelRedirectBtn: document.getElementById('cancelRedirectBtn'),
+            
+            toast: document.getElementById('toast')
+        };
+
+        // Inicializa Firebase diretamente (sem try/catch complexos que podem causar problemas)
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const database = firebase.database();
+        
+        // Current user information
+        let currentUser = null;
+        let appInitialized = false;
+
+        // Helper Functions
+        function showToast(message, type = 'success') {
+            const toast = elements.toast;
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            
+            toastMessage.textContent = message;
+            
+            if (type === 'success') {
+                toastIcon.className = 'fas fa-check-circle mr-2';
+                toast.classList.add('bg-green-600');
+                toast.classList.remove('bg-red-600', 'bg-blue-600');
+            } else if (type === 'error') {
+                toastIcon.className = 'fas fa-times-circle mr-2';
+                toast.classList.add('bg-red-600');
+                toast.classList.remove('bg-green-600', 'bg-blue-600');
+            } else if (type === 'info') {
+                toastIcon.className = 'fas fa-info-circle mr-2';
+                toast.classList.add('bg-blue-600');
+                toast.classList.remove('bg-green-600', 'bg-red-600');
+            }
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // Função para lidar com cliques em links externos - CORRIGIDA para abrir no Chrome
+        function handleExternalLink(url) {
+            // Mostrar o modal de redirecionamento
+            elements.redirectUrl.textContent = url;
+            elements.confirmRedirectBtn.href = url;
+            elements.redirectModal.classList.remove('hidden');
+            
+            // Configurar o botão de confirmação para abrir o link diretamente no navegador
+            elements.confirmRedirectBtn.onclick = function(e) {
+                e.preventDefault();
+                elements.redirectModal.classList.add('hidden');
+                
+                // Usar window.location.href para abrir no navegador padrão (Chrome)
+                window.location.href = url;
+                return false;
+            };
+        }
+
+        // Firebase Authentication Functions
+        function checkAuthState() {
+            console.log("Verificando estado de autenticação...");
+            
+            // Mostrar loading enquanto verifica
+            elements.loadingOverlay.classList.remove('hidden');
+            elements.loginSection.classList.add('hidden');
+            elements.appSection.classList.add('hidden');
+            
+            // Timeout para não ficar preso na tela de carregamento
+            const authTimeout = setTimeout(() => {
+                console.log("Timeout de autenticação atingido");
+                elements.loadingOverlay.classList.add('hidden');
+                elements.loginSection.classList.remove('hidden');
+                appInitialized = true;
+            }, 7000);
+            
+            try {
+                // Registra o observador do estado de autenticação
+                auth.onAuthStateChanged(function(user) {
+                    clearTimeout(authTimeout);
+                    
+                    if (user) {
+                        currentUser = user;
+                        console.log("Usuário autenticado:", user.email);
+                        
+                        // Buscar dados do usuário
+                        database.ref('users/' + user.uid).once('value')
+                            .then(snapshot => {
+                                const userData = snapshot.exists() ? snapshot.val() : { name: user.email };
+                                updateUIForLoggedInUser(userData.name || user.email);
+                                
+                                // Mostrar conteúdo do app
+                                elements.loginSection.classList.add('hidden');
+                                elements.appSection.classList.remove('hidden');
+                                elements.loadingOverlay.classList.add('hidden');
+                                
+                                loadAppData();
+                                appInitialized = true;
+                            })
+                            .catch(error => {
+                                console.error("Erro ao buscar dados do usuário:", error);
+                                
+                                // Mesmo com erro, mostrar a interface do usuário
+                                updateUIForLoggedInUser(user.email);
+                                elements.loginSection.classList.add('hidden');
+                                elements.appSection.classList.remove('hidden');
+                                elements.loadingOverlay.classList.add('hidden');
+                                
+                                loadAppData();
+                                appInitialized = true;
+                            });
+                    } else {
+                        console.log("Nenhum usuário logado");
+                        currentUser = null;
+                        updateUIForLoggedOutUser();
+                        
+                        // Mostrar tela de login
+                        elements.appSection.classList.add('hidden');
+                        elements.loginSection.classList.remove('hidden');
+                        elements.loadingOverlay.classList.add('hidden');
+                        
+                        appInitialized = true;
+                    }
+                });
+            } catch (error) {
+                clearTimeout(authTimeout);
+                console.error("Erro ao verificar estado de autenticação:", error);
+                
+                elements.loadingOverlay.classList.add('hidden');
+                elements.loginSection.classList.remove('hidden');
+                
+                elements.loginError.textContent = "Serviço temporariamente indisponível.";
+                elements.loginError.classList.remove('hidden');
+                
+                appInitialized = true;
+            }
+        }
+
+        function updateUIForLoggedInUser(displayName) {
+            elements.userDisplayName.textContent = displayName;
+            elements.mobileUserDisplayName.textContent = displayName;
+        }
+
+        function updateUIForLoggedOutUser() {
+            elements.userDropdown.classList.add('hidden');
+        }
+
+        function loginUser(email, password) {
+            // Validação básica
+            if (!email || !password) {
+                elements.loginError.textContent = "Email e senha são obrigatórios";
+                elements.loginError.classList.remove('hidden');
+                return;
+            }
+            
+            elements.loginError.classList.add('hidden');
+            
+            // Mostrar overlay de carregamento durante o login
+            elements.loadingOverlay.classList.remove('hidden');
+            
+            // Timeout de segurança (10 segundos)
+            const loginTimeout = setTimeout(() => {
+                elements.loadingOverlay.classList.add('hidden');
+                elements.loginError.textContent = "O servidor demorou para responder. Tente novamente.";
+                elements.loginError.classList.remove('hidden');
+            }, 10000);
+            
+            // CORREÇÃO: Simplificando o processo de login para evitar problemas
+            auth.signInWithEmailAndPassword(email, password)
+                .then(() => {
+                    clearTimeout(loginTimeout);
+                    showToast('Login realizado com sucesso!', 'success');
+                    // O overlay será removido pelo checkAuthState
+                })
+                .catch(error => {
+                    clearTimeout(loginTimeout);
+                    elements.loadingOverlay.classList.add('hidden');
+                    
+                    console.error("Erro de login:", error.code, error.message);
+                    
+                    // Tratar erros comuns com mensagens amigáveis
+                    let errorMessage;
+                    switch(error.code) {
+                        case 'auth/user-not-found':
+                            errorMessage = 'Usuário não encontrado.';
+                            break;
+                        case 'auth/wrong-password':
+                            errorMessage = 'Senha incorreta.';
+                            break;
+                        case 'auth/invalid-email':
+                            errorMessage = 'Email inválido.';
+                            break;
+                        case 'auth/invalid-credential':
+                        case 'auth/invalid-login-credentials':
+                            errorMessage = 'Email ou senha incorretos.';
+                            break;
+                        case 'auth/user-disabled':
+                            errorMessage = 'Conta desativada.';
+                            break;
+                        case 'auth/too-many-requests':
+                            errorMessage = 'Muitas tentativas. Tente novamente mais tarde.';
+                            break;
+                        case 'auth/network-request-failed':
+                            errorMessage = 'Erro de conexão. Verifique sua internet.';
+                            break;
+                        default:
+                            errorMessage = error.message;
+                    }
+                    
+                    elements.loginError.textContent = errorMessage;
+                    elements.loginError.classList.remove('hidden');
+                });
+        }
+
+        function logoutUser() {
+            auth.signOut()
+                .then(() => {
+                    showToast('Logout realizado com sucesso!', 'info');
+                })
+                .catch(error => {
+                    console.error('Erro ao fazer logout:', error);
+                    showToast('Erro ao realizar logout', 'error');
+                });
+        }
+
+        // Função para carregar todos os dados do aplicativo
+        function loadAppData() {
+            try {
+                loadProducts();
+                loadGallery();
+            } catch (error) {
+                console.error("Erro ao carregar dados do aplicativo:", error);
+                showToast('Erro ao carregar dados do aplicativo', 'error');
+            }
+        }
+
+        function loadProducts() {
+            try {
+                database.ref('products').once('value')
+                    .then(snapshot => {
+                        elements.productsList.innerHTML = '';
+                        
+                        if (!snapshot.exists()) {
+                            elements.productsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 col-span-full">Nenhum produto encontrado</div>';
+                            return;
+                        }
+                        
+                        const products = [];
+                        const categories = new Set(['all']);
+                        
+                        snapshot.forEach(childSnapshot => {
+                            const product = childSnapshot.val();
+                            if (product.active) {
+                                products.push({
+                                    id: childSnapshot.key,
+                                    ...product
+                                });
+                                
+                                // Add category to set if it exists
+                                if (product.category) {
+                                    categories.add(product.category);
+                                }
+                            }
+                        });
+                        
+                        // Populate filters if we have categories
+                        if (categories.size > 1) {
+                            elements.productFilters.innerHTML = '';
+                            categories.forEach(category => {
+                                const btn = document.createElement('button');
+                                btn.className = 'product-filter-btn px-4 py-2 rounded-full text-sm font-medium';
+                                btn.setAttribute('data-filter', category);
+                                
+                                if (category === 'all') {
+                                    btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary');
+                                    btn.textContent = 'Todos';
+                                } else {
+                                    btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                                    btn.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+                                }
+                                
+                                elements.productFilters.appendChild(btn);
+                                
+                                // Add click event
+                                btn.addEventListener('click', () => {
+                                    // Update active filter button
+                                    document.querySelectorAll('.product-filter-btn').forEach(b => {
+                                        b.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary');
+                                        b.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                                    });
+                                    btn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                                    btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary');
+                                    
+                                    // Filter products
+                                    filterProducts(products, category);
+                                });
+                            });
+                        }
+                        
+                        // Display all products initially
+                        filterProducts(products, 'all');
+                    })
+                    .catch(error => {
+                        console.error("Erro ao carregar produtos:", error);
+                        elements.productsList.innerHTML = '<div class="text-center text-red-500 col-span-full">Erro ao carregar produtos</div>';
+                    });
+            } catch (error) {
+                console.error("Exceção ao carregar produtos:", error);
+                elements.productsList.innerHTML = '<div class="text-center text-red-500 col-span-full">Erro ao carregar produtos</div>';
+            }
+        }
+
+        function filterProducts(products, filterValue) {
+            try {
+                elements.productsList.innerHTML = '';
+                
+                const filteredProducts = filterValue === 'all' 
+                    ? products 
+                    : products.filter(product => product.category === filterValue);
+                
+                if (filteredProducts.length === 0) {
+                    elements.productsList.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 col-span-full">Nenhum produto encontrado nesta categoria</div>';
+                    return;
+                }
+                
+                filteredProducts.forEach(product => {
+                    const card = document.createElement('div');
+                    card.className = 'product-card bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden';
+                    
+                    // Extrair o nome do domínio para exibição
+                    let domain = "";
+                    try {
+                        const url = new URL(product.link);
+                        domain = url.hostname;
+                    } catch(e) {
+                        domain = product.link;
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="relative pb-[56.25%]">
+                            <img src="${product.imageUrl || 'https://via.placeholder.com/600x400'}" alt="${product.name}" class="absolute inset-0 w-full h-full object-cover">
+                        </div>
+                        <div class="p-6">
+                            <h3 class="text-xl font-semibold mb-2">${product.name}</h3>
+                            <p class="text-gray-600 dark:text-gray-400 mb-2">${product.description || ''}</p>
+                            <p class="text-xs text-gray-500 mb-4 flex items-center">
+                                <i class="fas fa-external-link-alt mr-1"></i> ${domain}
+                            </p>
+                            <button class="external-link-btn bg-primary hover:bg-opacity-90 text-white font-medium py-2 px-4 rounded-lg inline-flex items-center transition duration-300" data-url="${product.link}">
+                                <i class="fas fa-external-link-alt mr-2"></i> Acessar
+                            </button>
+                        </div>
+                    `;
+                    
+                    elements.productsList.appendChild(card);
+                    
+                    // Adicionar evento ao botão para redirecionar
+                    card.querySelector('.external-link-btn').addEventListener('click', function() {
+                        const url = this.getAttribute('data-url');
+                        handleExternalLink(url);
+                    });
+                });
+            } catch (error) {
+                console.error("Erro ao filtrar produtos:", error);
+                elements.productsList.innerHTML = '<div class="text-center text-red-500 col-span-full">Erro ao filtrar produtos</div>';
+            }
+        }
+
+        function loadGallery() {
+            try {
+                database.ref('images').once('value')
+                    .then(snapshot => {
+                        elements.imageGallery.innerHTML = '';
+                        
+                        if (!snapshot.exists()) {
+                            elements.imageGallery.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 col-span-full">Nenhuma imagem encontrada</div>';
+                            return;
+                        }
+                        
+                        const images = [];
+                        const categories = new Set(['all']);
+                        
+                        snapshot.forEach(childSnapshot => {
+                            const image = childSnapshot.val();
+                            // Skip banner images, they're used in the slider
+                            if (image.category !== 'banner') {
+                                images.push({
+                                    id: childSnapshot.key,
+                                    ...image
+                                });
+                                
+                                // Add category to set if it exists
+                                if (image.category) {
+                                    categories.add(image.category);
+                                }
+                            }
+                        });
+                        
+                        // Populate filters if we have categories
+                        if (categories.size > 1) {
+                            elements.galleryFilters.innerHTML = '';
+                            categories.forEach(category => {
+                                const btn = document.createElement('button');
+                                btn.className = 'gallery-filter-btn px-4 py-2 rounded-full text-sm font-medium';
+                                btn.setAttribute('data-filter', category);
+                                
+                                if (category === 'all') {
+                                    btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary');
+                                    btn.textContent = 'Todas';
+                                } else {
+                                    btn.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                                    btn.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+                                }
+                                
+                                elements.galleryFilters.appendChild(btn);
+                                
+                                // Add click event
+                                btn.addEventListener('click', () => {
+                                    // Update active filter button
+                                    document.querySelectorAll('.gallery-filter-btn').forEach(b => {
+                                        b.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary');
+                                        b.classList.add('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                                    });
+                                    btn.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
+                                    btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary');
+                                    
+                                    // Filter images
+                                    filterGallery(images, category);
+                                });
+                            });
+                        }
+                        
+                        // Display all images initially
+                        filterGallery(images, 'all');
+                    })
+                    .catch(error => {
+                        console.error("Erro ao carregar galeria:", error);
+                        elements.imageGallery.innerHTML = '<div class="text-center text-red-500 col-span-full">Erro ao carregar imagens</div>';
+                    });
+            } catch (error) {
+                console.error("Exceção ao carregar galeria:", error);
+                elements.imageGallery.innerHTML = '<div class="text-center text-red-500 col-span-full">Erro ao carregar galeria</div>';
+            }
+        }
+
+        function filterGallery(images, filterValue) {
+            try {
+                elements.imageGallery.innerHTML = '';
+                
+                const filteredImages = filterValue === 'all' 
+                    ? images 
+                    : images.filter(image => image.category === filterValue);
+                
+                if (filteredImages.length === 0) {
+                    elements.imageGallery.innerHTML = '<div class="text-center text-gray-500 dark:text-gray-400 col-span-full">Nenhuma imagem encontrada nesta categoria</div>';
+                    return;
+                }
+                
+                filteredImages.forEach(image => {
+                    const card = document.createElement('div');
+                    card.className = 'overflow-hidden rounded-lg shadow-md relative group';
+                    
+                    card.innerHTML = `
+                        <div class="relative pb-[75%]">
+                            <img src="${image.url}" alt="${image.name}" class="absolute inset-0 w-full h-full object-cover">
+                            <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                <button class="view-image-btn bg-white text-primary hover:bg-opacity-90 p-3 rounded-full transform transition-transform duration-300 scale-90 group-hover:scale-100">
+                                    <i class="fas fa-search-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    elements.imageGallery.appendChild(card);
+                    
+                    // Add click event to view image
+                    card.querySelector('.view-image-btn').addEventListener('click', () => {
+                        showImagePreview(image);
+                    });
+                });
+            } catch (error) {
+                console.error("Erro ao filtrar galeria:", error);
+                elements.imageGallery.innerHTML = '<div class="text-center text-red-500 col-span-full">Erro ao filtrar imagens</div>';
+            }
+        }
+
+        function showImagePreview(image) {
+            try {
+                elements.previewImage.src = image.url;
+                elements.previewTitle.textContent = image.name;
+                
+                const category = image.category ? image.category.charAt(0).toUpperCase() + image.category.slice(1) : 'Sem categoria';
+                elements.previewCategory.textContent = category;
+                
+                elements.imagePreviewModal.classList.remove('hidden');
+            } catch (error) {
+                console.error("Erro ao mostrar pré-visualização de imagem:", error);
+                showToast('Erro ao exibir imagem', 'error');
+            }
+        }
+
+        // Inicialização principal do app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM carregado");
+            
+            try {
+                // Inicializar mostando a tela de carregamento
+                elements.loadingOverlay.classList.remove('hidden');
+                elements.loginSection.classList.add('hidden');
+                elements.appSection.classList.add('hidden');
+                
+                // Timeout como medida de segurança
+                setTimeout(() => {
+                    if (!appInitialized) {
+                        elements.loadingOverlay.classList.add('hidden');
+                        elements.loginSection.classList.remove('hidden');
+                    }
+                }, 8000);
+                
+                // Verificar estado de autenticação
+                checkAuthState();
+                
+                // Handle login
+                elements.loginForm.addEventListener('submit', e => {
+                    e.preventDefault();
+                    const email = document.getElementById('loginEmail').value;
+                    const password = document.getElementById('loginPassword').value;
+                    loginUser(email, password);
+                });
+                
+                // Handle logout
+                elements.logoutBtn.addEventListener('click', e => {
+                    e.preventDefault();
+                    logoutUser();
+                    elements.userDropdown.classList.add('hidden');
+                });
+                
+                elements.mobileLogoutBtn.addEventListener('click', e => {
+                    e.preventDefault();
+                    logoutUser();
+                    elements.mobileMenu.classList.add('hidden');
+                });
+                
+                // Handle user dropdown
+                document.getElementById('userMenuBtn').addEventListener('click', () => {
+                    elements.userDropdown.classList.toggle('hidden');
+                });
+                
+                // Handle mobile menu
+                elements.mobileMenuBtn.addEventListener('click', () => {
+                    elements.mobileMenu.classList.toggle('hidden');
+                });
+                
+                // Handle redirect modal
+                elements.cancelRedirectBtn.addEventListener('click', () => {
+                    elements.redirectModal.classList.add('hidden');
+                });
+                
+                // Close modals
+                document.querySelectorAll('.closeModal').forEach(button => {
+                    button.addEventListener('click', () => {
+                        elements.imagePreviewModal.classList.add('hidden');
+                    });
+                });
+                
+                // Handle smooth scrolling for anchor links
+                document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                    anchor.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        
+                        // Close mobile menu if open
+                        elements.mobileMenu.classList.add('hidden');
+                        
+                        const targetId = this.getAttribute('href');
+                        if (targetId === '#') return;
+                        
+                        const targetElement = document.querySelector(targetId);
+                        if (targetElement) {
+                            window.scrollTo({
+                                top: targetElement.offsetTop - 80, // Offset for header
+                                behavior: 'smooth'
+                            });
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error("Erro nos event listeners:", error);
+                elements.loadingOverlay.classList.add('hidden');
+                elements.loginSection.classList.remove('hidden');
+            }
+        });
+    </script>
+
+
+</body></html>
