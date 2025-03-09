@@ -876,7 +876,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden relative group fade-in">
                                 <img src="${image.url}" alt="${image.title}" class="w-full h-40 object-cover">
                                 <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <button class="view-image-btn mr-10 w-9 h-9 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:text-primary" data-url="${image.url}" data-title="${image.title}">
+                                    <button class="view-image-btn mr-2 w-9 h-9 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:text-primary" data-url="${image.url}" data-title="${image.title}">
                                         <i class="fas fa-search-plus"></i>
                                     </button>
                                     <button class="favorite-btn w-9 h-9 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:text-red-500" data-type="images" data-id="${image.id}">
@@ -914,7 +914,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col fade-in">
                             <div class="relative">
                                 <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-48 object-cover">
-                                <button class="favorite-btn absolute top-2 right-2 w-9 h-9 rounded-full bg-white dark:bg-gray-800 shadow flex items-center justify-center text-red-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" data-type="products" data-id="${product.id}">
+                                <button class="favorite-btn absolute top-10 right-2 w-9 h-9 rounded-full bg-white dark:bg-gray-800 shadow flex items-center justify-center text-red-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" data-type="products" data-id="${product.id}">
                                     <i class="fas fa-heart"></i>
                                 </button>
                             </div>
