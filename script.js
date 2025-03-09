@@ -185,14 +185,81 @@ document.addEventListener('DOMContentLoaded', function() {
             document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax';
         }
 
+        // Função melhorada para obter uma identificação única do dispositivo
+        function getDeviceId() {
+            // Coletamos mais informações para garantir uma identificação única do dispositivo
+            const navigatorInfo = [
+                navigator.userAgent,
+                navigator.language,
+                screen.width,
+                screen.height,
+                screen.colorDepth,
+                new Date().getTimezoneOffset(),
+                navigator.platform,
+                navigator.hardwareConcurrency || 'unknown',
+                navigator.deviceMemory || 'unknown',
+                navigator.vendor
+            ].join('|');
+            
+            // Função avançada de hash para gerar um ID mais exclusivo
+            let hash = 0;
+            for (let i = 0; i < navigatorInfo.length; i++) {
+                const char = navigatorInfo.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return 'device_' + Math.abs(hash).toString(16);
+        }
+
+        // Verifica e registra um dispositivo autorizado
+        async function checkAndRegisterAuthDevice(email) {
+            try {
+                const deviceId = getDeviceId();
+                const userRef = database.ref(`auth_devices/${btoa(email)}`);
+                const snapshot = await userRef.once('value');
+                
+                // Se não existe registro de dispositivo para este usuário, registre este como autorizado
+                if (!snapshot.exists()) {
+                    await userRef.set({
+                        deviceId: deviceId,
+                        firstLogin: Date.now(),
+                        lastLogin: Date.now()
+                    });
+                    return { authorized: true, firstTime: true };
+                } 
+                
+                // Se já existe, verifique se é o mesmo dispositivo
+                const authData = snapshot.val();
+                if (authData && authData.deviceId === deviceId) {
+                    // Atualiza o timestamp de último login
+                    await userRef.update({
+                        lastLogin: Date.now()
+                    });
+                    return { authorized: true, firstTime: false };
+                }
+                
+                // Este é um dispositivo diferente - não autorizado
+                return { authorized: false, message: "Esta conta só pode ser acessada no dispositivo onde foi registrada pela primeira vez." };
+                
+            } catch (error) {
+                console.error('Erro ao verificar dispositivo autorizado:', error);
+                return { authorized: false, message: "Erro ao verificar autorização de dispositivo." };
+            }
+        }
+
         // Armazenamento alternativo usando Firebase Database
         async function saveLoginState(email) {
             try {
-                // Armazenar no Firebase um marcador para esse usuário
                 const deviceId = getDeviceId();
                 await database.ref(`user_sessions/${deviceId}`).set({
                     email: email,
-                    lastLogin: Date.now()
+                    lastLogin: Date.now(),
+                    deviceInfo: {
+                        platform: navigator.platform,
+                        screenSize: `${screen.width}x${screen.height}`,
+                        timezone: new Date().getTimezoneOffset(),
+                        language: navigator.language
+                    }
                 });
                 return true;
             } catch (error) {
@@ -224,26 +291,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Erro ao limpar estado de login:', error);
                 return false;
             }
-        }
-
-        // Gera um ID único para o dispositivo baseado em características do navegador
-        function getDeviceId() {
-            const navigatorInfo = [
-                navigator.userAgent,
-                navigator.language,
-                screen.width,
-                screen.height,
-                screen.colorDepth
-            ].join('|');
-            
-            // Função simples de hash para gerar um ID sem expor informações sensíveis
-            let hash = 0;
-            for (let i = 0; i < navigatorInfo.length; i++) {
-                const char = navigatorInfo.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return 'device_' + Math.abs(hash).toString(16);
         }
         
         // Utility Functions
@@ -295,7 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
         appToggleDarkMode.addEventListener('click', toggleDarkModeHandler);
         sidebarToggleDarkMode.addEventListener('click', toggleDarkModeHandler);
         
-        // Verificar se existe login salvo ao carregar a página
+        // Verificar se existe login salvo ao carregar a página (modificado)
         async function checkSavedLogin() {
             showLoading();
             
@@ -310,6 +357,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (!savedEmail) {
                     hideLoading();
+                    return false;
+                }
+                
+                // Verificar se este dispositivo é o autorizado para este email
+                const authCheck = await checkAndRegisterAuthDevice(savedEmail);
+                if (!authCheck.authorized) {
+                    // Limpar dados de login não autorizados
+                    eraseCookie('userEmail');
+                    await clearLoginState();
+                    hideLoading();
+                    showError(loginError, authCheck.message);
                     return false;
                 }
                 
@@ -370,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
         
-        // Login Form Handler
+        // Login Form Handler (modificado)
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -385,6 +443,15 @@ document.addEventListener('DOMContentLoaded', function() {
             showLoading();
             
             try {
+                // Primeiro verifica se este dispositivo está autorizado
+                const authCheck = await checkAndRegisterAuthDevice(email);
+                
+                if (!authCheck.authorized) {
+                    hideLoading();
+                    showError(loginError, authCheck.message);
+                    return;
+                }
+                
                 // Verificar se o email existe no banco de dados como cliente
                 const clientsRef = database.ref('clients');
                 const snapshot = await clientsRef.orderByChild('email').equalTo(email).once('value');
@@ -809,7 +876,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden relative group fade-in">
                                 <img src="${image.url}" alt="${image.title}" class="w-full h-40 object-cover">
                                 <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <button class="view-image-btn mr-2 w-9 h-9 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:text-primary" data-url="${image.url}" data-title="${image.title}">
+                                    <button class="view-image-btn mr-10 w-9 h-9 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:text-primary" data-url="${image.url}" data-title="${image.title}">
                                         <i class="fas fa-search-plus"></i>
                                     </button>
                                     <button class="favorite-btn w-9 h-9 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:text-red-500" data-type="images" data-id="${image.id}">
@@ -1130,3 +1197,4 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
 });
+
